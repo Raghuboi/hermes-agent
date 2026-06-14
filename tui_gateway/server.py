@@ -11454,14 +11454,14 @@ def _(rid, params: dict) -> dict:
                 return _err(
                     rid,
                     4004,
-                    f"prompt index {idx} is out of range — use /prompts to list recent prompts",
+                    f"prompts: index {idx} is out of range — use /prompts to list recent prompts",
                 )
             selected = recents[idx - 1]
             msg_id = selected["id"]
             # Fetch the full message text for the selected prompt.
             msg = db.get_user_message(session_key, msg_id)
             if msg is None:
-                return _err(rid, 4018, f"prompt #{idx} not found")
+                return _err(rid, 4018, f"prompts: prompt #{idx} not found")
             content = msg.get("content")
             if isinstance(content, list):
                 parts = [
@@ -11474,7 +11474,7 @@ def _(rid, params: dict) -> dict:
             else:
                 text = ""
             if not text:
-                return _err(rid, 4018, f"prompt #{idx} has no editable text")
+                return _err(rid, 4018, f"prompts: prompt #{idx} has no editable text")
             notice = (
                 f"↺ Loaded prompt #{idx} into the composer. "
                 "Edit and press Enter to send."
@@ -11486,7 +11486,7 @@ def _(rid, params: dict) -> dict:
             preview = r.get("preview", "")
             lines.append(f"{i}. {preview}")
         lines.append("")
-        lines.append("Use /prompts N to load one into the composer.")
+        lines.append("Use /prompts N to load a prompt into the composer.")
         return _ok(rid, {"type": "exec", "output": "\n".join(lines)})
 
     if name == "undo":

@@ -818,7 +818,7 @@ describe('createSlashHandler', () => {
 
     expect(ctx.composer.setInput).toHaveBeenCalledWith('reuse this prompt')
     expect(ctx.transcript.send).not.toHaveBeenCalled()
-  })  })
+  })
 
   it('pages multi-line command.dispatch exec output', async () => {
     const output = [
@@ -826,7 +826,7 @@ describe('createSlashHandler', () => {
       '1. second prompt',
       '2. first prompt',
       '',
-      'Use /prompts N to load one into the composer.'
+      'Use /prompts N to load a prompt into the composer.'
     ].join('\n')
     const ctx = buildCtx({
       gateway: {
