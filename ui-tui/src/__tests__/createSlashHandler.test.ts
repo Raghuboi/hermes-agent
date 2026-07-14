@@ -832,6 +832,7 @@ describe('createSlashHandler', () => {
       '',
       'Use /prompts N to load a prompt into the composer.'
     ].join('\n')
+
     const ctx = buildCtx({
       gateway: {
         gw: {

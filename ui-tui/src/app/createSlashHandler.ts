@@ -36,6 +36,7 @@ export function createSlashHandler(ctx: SlashHandlerContext): (cmd: string) => b
     }
 
     const commandTitle = parsed.name[0]!.toUpperCase() + parsed.name.slice(1)
+
     const renderCommandOutput = (text: string): void => {
       const long = text.length > 180 || text.split('\n').filter(Boolean).length > 2
       long ? page(text, commandTitle) : sys(text)
