@@ -4723,8 +4723,8 @@ class SessionDB:
 
         Each entry is a dict with keys ``id``, ``timestamp``, ``preview``.
         ``preview`` is the first 80 characters of the message content
-        (with line breaks collapsed to spaces). Used by the /prompts
-        slash command picker.
+        (with line breaks collapsed to spaces). Used by the /undo and
+        /prompts slash commands.
 
         By default only active messages are returned.
         """

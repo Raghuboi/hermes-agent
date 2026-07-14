@@ -12263,14 +12263,15 @@ def _(rid, params: dict) -> dict:
         # Numeric arg: select one-based index and prefill the composer.
         arg_str = (arg or "").strip()
         if arg_str:
-            try:
-                idx = int(arg_str.split()[0])
-            except (ValueError, IndexError):
+            # Match classic CLI contract: the entire argument must be
+            # digits — trailing tokens like "1 extra" are rejected.
+            if not arg_str.isdigit():
                 return _err(
                     rid,
                     4004,
                     f"prompts: invalid index {arg_str!r} — use /prompts or /prompts N",
                 )
+            idx = int(arg_str)
             if idx < 1 or idx > len(recents):
                 return _err(
                     rid,

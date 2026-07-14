@@ -791,23 +791,17 @@ describe('createSlashHandler', () => {
     expect(ctx.gateway.gw.request).not.toHaveBeenCalledWith('command.dispatch', expect.anything())
   })
 
-  it('falls through to command.dispatch for /prompts and prefills the composer', async () => {
+  it('routes /prompts prefill directly from slash.exec without command.dispatch fallback', async () => {
     const ctx = buildCtx({
       gateway: {
         gw: {
           getLogTail: vi.fn(() => ''),
           request: vi.fn((method: string) => {
             if (method === 'slash.exec') {
-              return Promise.reject(
-                new Error('pending-input command: use command.dispatch for /prompts')
-              )
-            }
-
-            if (method === 'command.dispatch') {
               return Promise.resolve({
                 type: 'prefill',
                 message: 'reuse this prompt',
-                notice: 'Loaded prompt #1 into the composer.'
+                notice: '↺ Loaded prompt #1 into the composer. Edit and press Enter to send.'
               })
             }
 
@@ -822,14 +816,15 @@ describe('createSlashHandler', () => {
     expect(h('/prompts 1')).toBe(true)
 
     await vi.waitFor(() => {
-      expect(ctx.transcript.sys).toHaveBeenCalledWith('Loaded prompt #1 into the composer.')
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('↺ Loaded prompt #1 into the composer. Edit and press Enter to send.')
     })
 
     expect(ctx.composer.setInput).toHaveBeenCalledWith('reuse this prompt')
     expect(ctx.transcript.send).not.toHaveBeenCalled()
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalledWith('command.dispatch', expect.anything())
   })
 
-  it('pages multi-line command.dispatch exec output', async () => {
+  it('pages multi-line /prompts exec output directly from slash.exec', async () => {
     const output = [
       'Recent prompts in this session:',
       '1. second prompt',
@@ -843,12 +838,6 @@ describe('createSlashHandler', () => {
           getLogTail: vi.fn(() => ''),
           request: vi.fn((method: string) => {
             if (method === 'slash.exec') {
-              return Promise.reject(
-                new Error('pending-input command: use command.dispatch for /prompts')
-              )
-            }
-
-            if (method === 'command.dispatch') {
               return Promise.resolve({ type: 'exec', output })
             }
 
@@ -866,6 +855,62 @@ describe('createSlashHandler', () => {
       expect(ctx.transcript.page).toHaveBeenCalledWith(output, 'Prompts')
     })
     expect(ctx.transcript.sys).not.toHaveBeenCalledWith(output)
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalledWith('command.dispatch', expect.anything())
+  })
+
+  it('renders short /prompts exec output via sys not page', async () => {
+    const ctx = buildCtx({
+      gateway: {
+        gw: {
+          getLogTail: vi.fn(() => ''),
+          request: vi.fn((method: string) => {
+            if (method === 'slash.exec') {
+              return Promise.resolve({ type: 'exec', output: 'short output' })
+            }
+
+            return Promise.resolve({})
+          })
+        },
+        rpc: vi.fn(() => Promise.resolve({}))
+      }
+    })
+
+    const h = createSlashHandler(ctx)
+    expect(h('/prompts')).toBe(true)
+
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('short output')
+    })
+    expect(ctx.transcript.page).not.toHaveBeenCalled()
+  })
+
+  it('keeps plugin exec output on sys path (not paged)', async () => {
+    const ctx = buildCtx({
+      gateway: {
+        gw: {
+          getLogTail: vi.fn(() => ''),
+          request: vi.fn((method: string) => {
+            if (method === 'slash.exec') {
+              return Promise.resolve({
+                type: 'plugin',
+                output: 'plugin output line 1\nplugin output line 2\nplugin output line 3'
+              })
+            }
+
+            return Promise.resolve({})
+          })
+        },
+        rpc: vi.fn(() => Promise.resolve({}))
+      }
+    })
+
+    const h = createSlashHandler(ctx)
+    expect(h('/plugin-cmd')).toBe(true)
+
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('plugin output line 1\nplugin output line 2\nplugin output line 3')
+    })
+    expect(ctx.transcript.page).not.toHaveBeenCalled()
   })
 
   it('/history pages the current TUI transcript (user + assistant)', () => {
