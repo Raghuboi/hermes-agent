@@ -115,10 +115,16 @@ def _default_prompt_cache_retention_for_request(
     model: str,
     base_url: Any,
 ) -> Optional[str]:
-    """Return ``24h`` for supported models on Amazon Bedrock Mantle."""
+    """Return ``24h`` for supported hosts/models (Bedrock Mantle, Meta)."""
     from utils import base_url_hostname
 
-    hostname_parts = base_url_hostname(str(base_url or "")).split(".")
+    hostname = base_url_hostname(str(base_url or "")).lower()
+    # Meta Model API: prompt caching is opt-in via prompt_cache_retention.
+    # Measured 0% hits on /chat/completions vs 93-99% on /responses with 24h.
+    if hostname == "api.meta.ai":
+        return "24h"
+
+    hostname_parts = hostname.split(".")
     is_bedrock_mantle = (
         len(hostname_parts) == 4
         and hostname_parts[0] == "bedrock-mantle"
@@ -426,18 +432,27 @@ class ResponsesApiTransport(ProviderTransport):
             elif reasoning_config.get("effort"):
                 reasoning_effort = reasoning_config["effort"]
 
-        _effort_clamp = {"minimal": "low"}
-        if "gpt-5.6" in (model or "").lower():
-            # Ultra is the Codex product tier; the Responses API wire value is max.
-            _effort_clamp["ultra"] = "max"
+        # "ultra" is Hermes-internal ladder vocabulary (the Codex product
+        # tier); no Responses-API backend accepts it verbatim, so the
+        # baseline maps it to its wire cap "max" for EVERY model — the old
+        # gpt-5.6-only guard leaked "ultra" untranslated to sibling models
+        # and the request 400'd (same class as #89503 on the
+        # chat-completions transport). Backend-specific branches below
+        # override the baseline where the ceiling is narrower.
+        _effort_clamp = {"minimal": "low", "ultra": "max"}
         if params.get("is_xai_responses", False):
             from agent.model_metadata import is_grok_46_family
 
-            # Grok 4.6 accepts xhigh as a wire value. Older Grok models top out
-            # at high, while max/ultra remain Hermes aliases for every xAI model.
-            if not is_grok_46_family(model):
+            # Grok 4.6 accepts xhigh as a wire value; older Grok models top
+            # out at high. max/ultra are Hermes ladder aliases for "this
+            # model's ceiling", so they clamp to the strongest level the
+            # model actually accepts — xhigh on grok-4.6, high elsewhere —
+            # never one rung below it (#87279).
+            if is_grok_46_family(model):
+                _effort_clamp.update({"max": "xhigh", "ultra": "xhigh"})
+            else:
                 _effort_clamp["xhigh"] = "high"
-            _effort_clamp.update({"max": "high", "ultra": "high"})
+                _effort_clamp.update({"max": "high", "ultra": "high"})
         if (params.get("provider") or "").strip().lower() == "actual":
             # Actual Computer relays to SGLang/vLLM backends that accept only
             # none/low/medium/high/max for reasoning effort — a forwarded
